@@ -10,6 +10,8 @@
 
 #include <lib/nas/utils.hpp>
 #include <ue/nas/keys.hpp>
+#include <ue/nas/alg/auth_s3g256.hpp>
+#include <ue/nas/alg/auth_s5g.hpp>
 
 namespace nr::ue
 {
@@ -335,6 +337,44 @@ void NasMm::receiveAuthenticationRequest5gAka(const nas::AuthenticationRequest &
     auto &rand = msg.authParamRAND->value;
     auto &autn = msg.authParamAUTN->value;
 
+    // Authentication protocol selector hook:
+    // AUTN.AMF (2 bytes, octets 6..7) defines which auth algorithm implementation should be used.
+    const auto selectedProtocol = selectAuthProtocolByAmf(autn);
+    if (selectedProtocol == AuthProtocol::S3G256)
+    {
+        m_logger->debug("Selected auth protocol by AMF: s3g256 (0x8010)");
+        // Stub link for crypto-team implementation.
+        alg::s3g256::Config cfg{m_base->config->s3g256.key.copy(), m_base->config->s3g256.top.copy(),
+                                m_base->config->s3g256.add.copy()};
+        try
+        {
+            alg::s3g256::NotImplemented(cfg, rand, autn.subCopy(6, 2));
+        }
+        catch (const std::exception &e)
+        {
+            m_logger->warn("s3g256 algorithm is not implemented yet, fallback to milenage path: %s", e.what());
+        }
+    }
+    else if (selectedProtocol == AuthProtocol::S5G)
+    {
+        m_logger->debug("Selected auth protocol by AMF: s5g (0x8020)");
+        // Stub link for crypto-team implementation.
+        alg::s5g::Config cfg{m_base->config->s5g.key.copy(), m_base->config->s5g.top.copy(),
+                             m_base->config->s5g.add.copy()};
+        try
+        {
+            alg::s5g::NotImplemented(cfg, rand, autn.subCopy(6, 2));
+        }
+        catch (const std::exception &e)
+        {
+            m_logger->warn("s5g algorithm is not implemented yet, fallback to milenage path: %s", e.what());
+        }
+    }
+    else
+    {
+        m_logger->debug("Selected auth protocol by AMF: milenage/default");
+    }
+
     EAutnValidationRes autnCheck = EAutnValidationRes::OK;
 
     // If the received RAND is same with store stored RAND, bypass AUTN validation
@@ -402,6 +442,27 @@ void NasMm::receiveAuthenticationRequest5gAka(const nas::AuthenticationRequest &
             return;
         m_timers->t3520.start();
         sendFailure(nas::EMmCause::NON_5G_AUTHENTICATION_UNACCEPTABLE);
+    }
+}
+
+NasMm::AuthProtocol NasMm::selectAuthProtocolByAmf(const OctetString &autn) const
+{
+    if (autn.length() < 8)
+        return AuthProtocol::MILENAGE;
+
+    // AUTN layout: SQN^AK(6) | AMF(2) | MAC(8)
+    const OctetString receivedAmf = autn.subCopy(6, 2);
+    const uint16_t amfValue = static_cast<uint16_t>((receivedAmf.getI(0) << 8) | receivedAmf.getI(1));
+
+    switch (amfValue)
+    {
+    case 0x8010:
+        return AuthProtocol::S3G256;
+    case 0x8020:
+        return AuthProtocol::S5G;
+    case 0x8000:
+    default:
+        return AuthProtocol::MILENAGE;
     }
 }
 
@@ -512,6 +573,7 @@ EAutnValidationRes NasMm::validateAutn(const OctetString &rand, const OctetStrin
 
 crypto::milenage::Milenage NasMm::calculateMilenage(const OctetString &sqn, const OctetString &rand, bool dummyAmf)
 {
+    // Authentication core for current implementation (milenage).
     OctetString amf = dummyAmf ? OctetString::FromSpare(2) : m_base->config->amf.copy();
 
     if (m_base->config->opType == OpType::OPC)

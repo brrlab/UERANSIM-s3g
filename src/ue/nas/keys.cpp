@@ -23,6 +23,7 @@ namespace nr::ue::keys
 
 void DeriveKeysSeafAmf(const UeConfig &ueConfig, const Plmn &currentPlmn, NasSecurityContext &nasSecurityContext)
 {
+    // KDF POINT: K_AUSF -> K_SEAF -> K_AMF derivation chain (5G AKA / EAP-AKA').
     auto &keys = nasSecurityContext.keys;
     std::string snn = ConstructServingNetworkName(currentPlmn);
 
@@ -39,6 +40,7 @@ void DeriveKeysSeafAmf(const UeConfig &ueConfig, const Plmn &currentPlmn, NasSec
 
 void DeriveNasKeys(NasSecurityContext &securityContext)
 {
+    // KDF POINT: NAS ENC/INT key derivation from K_AMF.
     OctetString s1[2];
     s1[0] = OctetString::FromOctet(N_NAS_enc_alg);
     s1[1] = OctetString::FromOctet((int)securityContext.ciphering);
@@ -66,6 +68,7 @@ std::string ConstructServingNetworkName(const Plmn &plmn)
 OctetString CalculateKAusfFor5gAka(const OctetString &ck, const OctetString &ik, const std::string &snn,
                                    const OctetString &sqnXorAk)
 {
+    // KDF POINT: CK||IK -> K_AUSF derivation for 5G-AKA.
     OctetString key = OctetString::Concat(ck, ik);
     OctetString s[2];
     s[0] = crypto::EncodeKdfString(snn);
@@ -76,6 +79,7 @@ OctetString CalculateKAusfFor5gAka(const OctetString &ck, const OctetString &ik,
 std::pair<OctetString, OctetString> CalculateCkPrimeIkPrime(const OctetString &ck, const OctetString &ik,
                                                             const std::string &snn, const OctetString &sqnXorAk)
 {
+    // KDF POINT: CK'/IK' derivation for EAP-AKA'.
     OctetString key = OctetString::Concat(ck, ik);
     OctetString s[2];
     s[0] = crypto::EncodeKdfString(snn);
@@ -128,6 +132,7 @@ OctetString CalculateKAusfForEapAkaPrime(const OctetString &mk)
 OctetString CalculateResStar(const OctetString &key, const std::string &snn, const OctetString &rand,
                              const OctetString &res)
 {
+    // KDF POINT: (X)RES* derivation.
     OctetString params[3];
     params[0] = crypto::EncodeKdfString(snn);
     params[1] = rand.copy();
@@ -141,6 +146,7 @@ OctetString CalculateResStar(const OctetString &key, const std::string &snn, con
 
 OctetString DeriveAmfPrimeInMobility(bool isUplink, const NasCount &count, const OctetString &kAmf)
 {
+    // KDF POINT: K_AMF' derivation for mobility.
     OctetString params[2];
     params[0] = OctetString::FromOctet(isUplink ? 0x00 : 0x01);
     params[1] = OctetString::FromOctet4(count.toOctet4());
@@ -157,6 +163,7 @@ OctetString CalculateAuts(const OctetString &sqn, const OctetString &ak, const O
 
 OctetString CalculateAkmaKey(const OctetString &kAusf, const Supi &supi)
 {
+    // KDF POINT: AKMA key derivation from K_AUSF.
     OctetString inputParams[1];
     inputParams[0] = crypto::EncodeKdfString(supi.value);
 

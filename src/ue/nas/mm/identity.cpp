@@ -9,8 +9,6 @@
 #include "mm.hpp"
 #include <lib/nas/base.hpp>
 #include <utils/common.hpp>
-// STEPHANE
-#include <iostream>
 
 namespace nr::ue
 {
@@ -73,6 +71,7 @@ nas::IE5gsMobileIdentity NasMm::getOrGenerateSuci()
 
 nas::IE5gsMobileIdentity NasMm::generateSuci()
 {
+    // SUPI/SUCI main entrypoint: this function maps protectionScheme from config to concrete SUCI generation.
     auto &supi = m_base->config->supi;
     auto &plmn = m_base->config->hplmn;
     auto &protectionScheme = m_base->config->protectionScheme;
@@ -112,10 +111,27 @@ nas::IE5gsMobileIdentity NasMm::generateSuci()
     }
     else if (protectionScheme == 1)
     {
+        // SUCI Protection Scheme 1 (existing Profile A, X25519 + ECIES-like flow).
         ret.imsi.protectionSchemaId = 1;
         ret.imsi.homeNetworkPublicKeyIdentifier = homeNetworkPublicKeyId;
         ret.imsi.schemeOutput = generateSUCIProfileA(imsi.substr(plmn.isLongMnc ? 6 : 5), homeNetworkPublicKey);
         return ret;
+    }
+    else if (protectionScheme == 3)
+    {
+        // SUCI Protection Scheme 3 (new Profile C / "sidf"), delegated to a dedicated stub module.
+        ret.imsi.protectionSchemaId = 3;
+        ret.imsi.homeNetworkPublicKeyIdentifier = homeNetworkPublicKeyId;
+        try
+        {
+            ret.imsi.schemeOutput = alg::sidf::GenerateSchemeOutput(imsi.substr(plmn.isLongMnc ? 6 : 5), homeNetworkPublicKey);
+            return ret;
+        }
+        catch (const std::exception &e)
+        {
+            m_logger->err("SIDF profile C generation failed: %s", e.what());
+            return {};
+        }
     }
     else
     {
@@ -126,6 +142,7 @@ nas::IE5gsMobileIdentity NasMm::generateSuci()
 
 std::string NasMm::generateSUCIProfileA(const std::string &imsi, const OctetString &hnPublicKey)
 {
+    // Existing SUCI Profile A implementation (kept unchanged).
     std::string name("Seed for x25519 generation");
     std::string seed;
     Random rnd = Random::Mixed(name);
@@ -148,6 +165,7 @@ std::string NasMm::generateSUCIProfileA(const std::string &imsi, const OctetStri
     compact_x25519_shared(shared.data(), uePrivateKey.data(), hnPublicKey.data());
 
     uint8_t derivatedKey[64];
+    // KDF POINT (SUCI Profile A): X9.63 KDF derives ENC/IV/MAC keys from ECDH shared secret.
     x963kdf(derivatedKey, shared.data(), uePublicKey.data(), 64);
     OctetString buf = OctetString::FromArray(derivatedKey, 64);
     OctetString encryptionKey = buf.subCopy(0, 16);

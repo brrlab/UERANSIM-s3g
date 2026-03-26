@@ -21,6 +21,7 @@
 #include "ext/crypt-ext/x963kdf.h"
 #include "ext/crypt-ext/aes.hpp"
 #include "ext/crypt-ext/hmac-sha256.h"
+#include <ue/nas/alg/sidf.hpp>
 
 
 namespace nr::ue
@@ -30,6 +31,14 @@ class NasSm;
 
 class NasMm
 {
+  private:
+    enum class AuthProtocol
+    {
+        MILENAGE,
+        S3G256,
+        S5G
+    };
+
   private:
     TaskBase *m_base;
     NasTimers *m_timers;
@@ -132,6 +141,7 @@ class NasMm
     void receiveEapSuccessMessage(const eap::Eap &eap);
     void receiveEapFailureMessage(const eap::Eap &eap);
     EAutnValidationRes validateAutn(const OctetString &rand, const OctetString &autn);
+    AuthProtocol selectAuthProtocolByAmf(const OctetString &autn) const;
     crypto::milenage::Milenage calculateMilenage(const OctetString &sqn, const OctetString &rand, bool dummyAmf);
     bool networkFailingTheAuthCheck(bool hasChance);
 

@@ -143,6 +143,22 @@ static nr::ue::UeConfig *ReadConfigYaml()
     result->opC = OctetString::FromHex(yaml::GetString(config, "op", 32, 32));
     result->amf = OctetString::FromHex(yaml::GetString(config, "amf", 4, 4));
 
+    if (yaml::HasField(config, "s3g256"))
+    {
+        yaml::AssertHasFields(config["s3g256"], {"key", "top", "add"});
+        result->s3g256.key = OctetString::FromHex(yaml::GetString(config["s3g256"], "key", 256, 256)); // 128 bytes
+        result->s3g256.top = OctetString::FromHex(yaml::GetString(config["s3g256"], "top", 64, 64));   // 32 bytes
+        result->s3g256.add = OctetString::FromHex(yaml::GetString(config["s3g256"], "add", 16, 16));   // 8 bytes
+    }
+
+    if (yaml::HasField(config, "s5g"))
+    {
+        yaml::AssertHasFields(config["s5g"], {"key", "top", "add"});
+        result->s5g.key = OctetString::FromHex(yaml::GetString(config["s5g"], "key", 512, 512)); // 256 bytes
+        result->s5g.top = OctetString::FromHex(yaml::GetString(config["s5g"], "top", 64, 64));   // 32 bytes
+        result->s5g.add = OctetString::FromHex(yaml::GetString(config["s5g"], "add", 16, 16));   // 8 bytes
+    }
+
     result->configureRouting = !g_options.noRoutingConfigs;
 
     // If we have multiple UEs in the same process, then log names should be separated.
@@ -354,6 +370,12 @@ static nr::ue::UeConfig *GetConfigByUe(int ueIndex)
     c->opC = g_refConfig->opC.copy();
     c->opType = g_refConfig->opType;
     c->amf = g_refConfig->amf.copy();
+    c->s3g256.key = g_refConfig->s3g256.key.copy();
+    c->s3g256.top = g_refConfig->s3g256.top.copy();
+    c->s3g256.add = g_refConfig->s3g256.add.copy();
+    c->s5g.key = g_refConfig->s5g.key.copy();
+    c->s5g.top = g_refConfig->s5g.top.copy();
+    c->s5g.add = g_refConfig->s5g.add.copy();
     c->imei = g_refConfig->imei;
     c->imeiSv = g_refConfig->imeiSv;
     c->supi = g_refConfig->supi;
