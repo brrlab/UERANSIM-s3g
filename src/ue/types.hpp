@@ -91,6 +91,13 @@ struct IntegrityMaxDataRateConfig
 
 struct UeConfig
 {
+    struct AuthAlgorithmConfig
+    {
+        OctetString key{};
+        OctetString top{};
+        OctetString add{};
+    };
+
     /* Read from config file */
     std::optional<Supi> supi{};
     int protectionScheme;
@@ -102,6 +109,9 @@ struct UeConfig
     OctetString opC{};
     OpType opType{};
     OctetString amf{};
+    // Future auth algorithm parameters (USIM-emulation extensions).
+    AuthAlgorithmConfig s3g256{};
+    AuthAlgorithmConfig s5g{};
     std::optional<std::string> imei{};
     std::optional<std::string> imeiSv{};
     SupportedAlgs supportedAlgs{};
